@@ -40,22 +40,26 @@ def is_adjacent_to_cluster(x, y):
 def biased_move_with_field(x, y, field_x, field_y):
 	directions = [(1,0), (-1,0), (0,1), (0,-1)]
 	weights = []
+	ex = field_x[x, y]
+	ey = field_y[x, y]
+	alpha = abs(ex) + abs(ey)
+	if alpha == 0:
+		return x, y
 
 	for dx, dy in directions:
 		nx, ny = x + dx, y + dy
 		if is_valid(nx, ny):
-			ex = field_x[x, y]
-			ey = field_y[x, y]
 			dot = dx * ex + dy * ey  # 电场方向与移动方向的投影
-			weight = max(0.001, dot)  # 投影越大越偏好
+			weight = np.exp(dot / alpha)  # softmax 放大
 			weights.append(weight)
 		else:
 			weights.append(0.0)
 
-	if sum(weights) == 0:
+	total = sum(weights)
+	if total == 0:
 		return x, y
 
-	probs = [w / sum(weights) for w in weights]
+	probs = [w / total for w in weights]
 	dx, dy = random.choices(directions, weights=probs)[0]
 	return x + dx, y + dy
 
@@ -63,8 +67,6 @@ def biased_move_with_field(x, y, field_x, field_y):
 def dla_with_custom_field(field_x, field_y):
 	global cluster_radius
 	particle_count = 1
-	if particle_count == 2:
-		print(2)
 
 	while particle_count < max_particles:
 		x, y = spawn_particle(cluster_radius)
@@ -92,10 +94,23 @@ def plot_cluster():
 	plt.show()
 
 
+def plot_field(field_x, field_y, stride=10):
+	X, Y = np.mgrid[0:grid_size, 0:grid_size]
+	plt.figure(figsize=(6, 6))
+	plt.quiver(X[::stride, ::stride], -Y[::stride, ::stride],
+			   field_x[::stride, ::stride], field_y[::stride, ::stride],
+			   pivot='middle', color='red', alpha=0.6)
+	plt.title("Electric Field Visualization")
+	plt.gca().invert_yaxis()
+	plt.show()
+
+
 # 点电荷在中心
 field_x, field_y = gf.point_charge(grid_size, charge_pos=(center, center), k=1.0)
 # 或平行板电场
-# field_x, field_y = generate_parallel_plate_field(grid_size, direction="down", strength=1.0)
+# field_x, field_y = gf.parallel_plate(grid_size, direction="down", strength=1.0)
+
+plot_field(field_x, field_y)
 
 # 运行模拟
 dla_with_custom_field(field_x, field_y)
