@@ -11,8 +11,8 @@ def point_charge(grid_size, charge_pos, k=1.0):
 			dx = i - x0
 			dy = j - y0
 			r2 = dx**2 + dy**2 + 1e-6  # 避免除零
-			field_x[i, j] = k * dx / r2
-			field_y[i, j] = k * dy / r2
+			field_x[i, j] = -k * dx / (r2 ** 1.5)
+			field_y[i, j] = -k * dy / (r2 ** 1.5)
 
 	return field_x, field_y
 
