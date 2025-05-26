@@ -104,14 +104,17 @@ def plot_field(field_x, field_y, stride=10):
 	plt.gca().invert_yaxis()
 	plt.show()
 
+def test():
+	# 点电荷在中心
+	field_x, field_y = gf.point_charge(grid_size, charge_pos=(center, center), k=1.0)
+	# 或平行板电场
+	# field_x, field_y = gf.parallel_plate(grid_size, direction="down", strength=1.0)
 
-# 点电荷在中心
-field_x, field_y = gf.point_charge(grid_size, charge_pos=(center, center), k=1.0)
-# 或平行板电场
-# field_x, field_y = gf.parallel_plate(grid_size, direction="down", strength=1.0)
+	plot_field(field_x, field_y)
 
-plot_field(field_x, field_y)
+	# 运行模拟
+	dla_with_custom_field(field_x, field_y)
+	plot_cluster()
 
-# 运行模拟
-dla_with_custom_field(field_x, field_y)
-plot_cluster()
+
+test()
