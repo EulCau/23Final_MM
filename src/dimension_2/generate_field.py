@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def point_charge(grid_size, charge_pos, k=1.0):
+def point_field(grid_size, charge_pos, k=1.0):
 	field_x = np.zeros((grid_size, grid_size))
 	field_y = np.zeros((grid_size, grid_size))
 	x0, y0 = charge_pos
@@ -17,7 +17,7 @@ def point_charge(grid_size, charge_pos, k=1.0):
 	return field_x, field_y
 
 
-def parallel_plate(grid_size, direction="down", strength=1.0):
+def uniform_field(grid_size, direction="down", strength=1.0):
 	field_x = np.zeros((grid_size, grid_size))
 	field_y = np.zeros((grid_size, grid_size))
 
