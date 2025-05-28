@@ -4,6 +4,7 @@ libs/
 __pycache__/
 .vscode
 Tmp/
+ffmpeg/
 .idea/
 .venv/
 
