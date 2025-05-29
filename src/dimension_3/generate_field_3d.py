@@ -1,21 +1,23 @@
-import numpy as np
-from enum import Enum
 from dataclasses import dataclass, field
+from enum import Enum
 
+import numpy as np
 from matplotlib import pyplot as plt
 
 
-class FieldType(Enum):
+class FieldType3d(Enum):
 	POINT = "point"
 	UNIFORM_UP = "uniform_up"
 	UNIFORM_DOWN = "uniform_down"
 	UNIFORM_LEFT = "uniform_left"
 	UNIFORM_RIGHT = "uniform_right"
+	UNIFORM_FRONT = "uniform_front"
+	UNIFORM_BACK = "uniform_back"
 
 
 @dataclass
-class ElectricField:
-	field_type: FieldType
+class ElectricField3d:
+	field_type: FieldType3d
 	grid_size: int
 	strength: float
 	charge_pos: tuple = None
@@ -25,84 +27,84 @@ class ElectricField:
 	field_z: np.ndarray = field(init=False)
 
 	def __post_init__(self):
-		if self.field_type == FieldType.POINT:
+		if self.field_type == FieldType3d.POINT:
 			if self.charge_pos is None:
 				self.charge_pos = (self.grid_size // 2, self.grid_size // 2, self.grid_size // 2)
 			self.field_x, self.field_y, self.field_z = self._point_field()
 		elif self.field_type in {
-			FieldType.UNIFORM_UP,
-			FieldType.UNIFORM_DOWN,
-			FieldType.UNIFORM_LEFT,
-			FieldType.UNIFORM_RIGHT
+			FieldType3d.UNIFORM_UP,
+			FieldType3d.UNIFORM_DOWN,
+			FieldType3d.UNIFORM_LEFT,
+			FieldType3d.UNIFORM_RIGHT
 		}:
 			self.field_x, self.field_y, self.field_z = self._uniform_field()
 		else:
 			raise ValueError(f"Unsupported field type: {self.field_type}")
 
 	def _point_field(self):
-		field_x = np.zeros((self.grid_size, self.grid_size))
-		field_y = np.zeros((self.grid_size, self.grid_size))
-		field_z = np.zeros((self.grid_size, self.grid_size))
 		x0, y0, z0 = self.charge_pos
+		idx = np.arange(0, self.grid_size, 1)
+		X, Y, Z = np.meshgrid(idx, idx, idx, indexing='ij')
 
-		for i in range(self.grid_size):
-			for j in range(self.grid_size):
-				for k in range(self.grid_size):
-					dx = i - x0
-					dy = j - y0
-					dz = k - z0
-					r2 = dx ** 2 + dy ** 2 + dz ** 2 + 1e-6  # 避免除零
-					field_x[i, j] = -self.strength * dx / (r2 ** 1.5)
-					field_y[i, j] = -self.strength * dy / (r2 ** 1.5)
-					field_z[i, j] = -self.strength * dz / (r2 ** 1.5)
+		dx = X - x0
+		dy = Y - y0
+		dz = Z - z0
+		r2 = dx ** 2 + dy ** 2 + dz ** 2
+		r3 = r2 ** 1.5 + 1e-9
+
+		field_x = -self.strength * dx / r3
+		field_y = -self.strength * dy / r3
+		field_z = -self.strength * dz / r3
 
 		return field_x, field_y, field_z
 
 	def _uniform_field(self):
-		field_x = np.zeros((self.grid_size, self.grid_size))
-		field_y = np.zeros((self.grid_size, self.grid_size))
+		field_x = np.zeros((self.grid_size, self.grid_size, self.grid_size))
+		field_y = np.zeros((self.grid_size, self.grid_size, self.grid_size))
+		field_z = np.zeros((self.grid_size, self.grid_size, self.grid_size))
 
-		if self.field_type == FieldType.UNIFORM_DOWN:
-			field_y[:, :] = -self.strength
-		elif self.field_type == FieldType.UNIFORM_UP:
-			field_y[:, :] = self.strength
-		elif self.field_type == FieldType.UNIFORM_LEFT:
-			field_x[:, :] = -self.strength
-		elif self.field_type == FieldType.UNIFORM_RIGHT:
-			field_x[:, :] = self.strength
+		if self.field_type == FieldType3d.UNIFORM_DOWN:
+			field_z[:, :, :] = -self.strength
+		elif self.field_type == FieldType3d.UNIFORM_UP:
+			field_z[:, :, :] = self.strength
+		elif self.field_type == FieldType3d.UNIFORM_LEFT:
+			field_y[:, :, :] = -self.strength
+		elif self.field_type == FieldType3d.UNIFORM_RIGHT:
+			field_y[:, :, :] = self.strength
+		elif self.field_type == FieldType3d.UNIFORM_BACK:
+			field_x[:, :, :] = -self.strength
+		elif self.field_type == FieldType3d.UNIFORM_FRONT:
+			field_x[:, :, :] = self.strength
 
-		return field_x, field_y
+		return field_x, field_y, field_z
 
-	def plot_field(self, density: int = 10, scale: float = 50.0):
-		# 生成网格坐标
-		x = np.arange(0, self.grid_size, 1)
-		y = np.arange(0, self.grid_size, 1)
-		X, Y = np.meshgrid(x, y, indexing='ij')  # 保持 X(i,j), Y(i,j) 对应 field_x[i,j]
+	def plot_field(self, density: int = 20, length: float = 20.0):
+		idx = np.arange(0, self.grid_size, density)
+		X, Y, Z = np.meshgrid(idx, idx, idx, indexing='ij')
 
-		magnitude = np.sqrt(self.field_x ** 2 + self.field_y ** 2)
-		field_x_vis = 2 * self.field_x / (magnitude + 1e-6)
-		field_y_vis = 2 * self.field_y / (magnitude + 1e-6)
+		# 提取稀疏电场分量
+		U = self.field_x[::density, ::density, ::density]
+		V = self.field_y[::density, ::density, ::density]
+		W = self.field_z[::density, ::density, ::density]
 
-		# 稀疏采样
-		slice_step = density
-		X_slice = X[::slice_step, ::slice_step]
-		Y_slice = Y[::slice_step, ::slice_step]
-		U_slice = field_x_vis[::slice_step, ::slice_step]
-		V_slice = field_y_vis[::slice_step, ::slice_step]
+		# 计算模长归一化, 避免除零
+		mag = np.sqrt(U ** 2 + V ** 2 + W ** 2) + 1e-6
+		U = U / mag
+		V = V / mag
+		W = W / mag
 
-		plt.figure(figsize=(6, 6))
-		plt.quiver(
-			X_slice, Y_slice, U_slice, V_slice,
-			scale=scale, angles='xy', pivot='middle', color='blue'
-		)
-		plt.title(f"Electric Field: {self.field_type.value}")
-		plt.axis('equal')
-		plt.xlim(0, self.grid_size)
-		plt.ylim(0, self.grid_size)
-		plt.gca().invert_yaxis()  # 保持与笛卡尔坐标系一致（y 向上）
+		fig = plt.figure(figsize=(6, 6))
+		ax = fig.add_subplot(111, projection='3d')
+		ax.quiver(X, Y, Z, U, V, W, length=length, normalize=True, color='blue')
+
+		ax.set_title(f"3D Electric Field: {self.field_type.value}")
+		ax.set_xlabel("X")
+		ax.set_ylabel("Y")
+		ax.set_zlabel("Z")
+		plt.tight_layout()
 		plt.show()
 
 
 if __name__ == "__main__":
-	electric_field = ElectricField(FieldType.POINT, 201, 1.0)
+	electric_field = ElectricField3d(FieldType3d.POINT, 201, 1.0)
 	electric_field.plot_field()
