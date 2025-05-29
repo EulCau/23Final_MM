@@ -15,7 +15,7 @@ class DLASimulator:
 	max_steps_per_particle: int = 10000			# 每个粒子的最大步数
 	attach_prob: float = 1.0					# 粘附概率, 后续可以调控
 	radius_buffer: int = 5						# 控制生成新粒子的半径缓冲区
-	electric_field: gf2.ElectricField2d = None		# 控制电场形状
+	electric_field: gf2.ElectricField2d = None	# 控制电场形状
 
 	cluster_radius: int = field(init=False)
 
@@ -51,7 +51,7 @@ class DLASimulator:
 
 				for dx, dy in self.directions:
 					ni, nj = i + dx, j + dy
-					if 0 <= ni < self.grid_size and 0 <= nj < self.grid_size:
+					if self.is_valid(ni, nj):
 						dir_vec = np.array([dx, dy], dtype=float)
 						dir_vec /= np.linalg.norm(dir_vec)  # 单位向量
 						dot = np.dot(field_vec, dir_vec)
