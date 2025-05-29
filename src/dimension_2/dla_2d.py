@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 import matplotlib.pyplot as plt
 import numpy as np
 
-import generate_field as gf
+import generate_field_2d as gf2
 
 
 # 模拟参数
@@ -15,7 +15,7 @@ class DLASimulator:
 	max_steps_per_particle: int = 10000			# 每个粒子的最大步数
 	attach_prob: float = 1.0					# 粘附概率, 后续可以调控
 	radius_buffer: int = 5						# 控制生成新粒子的半径缓冲区
-	electric_field: gf.ElectricField = None		# 控制电场形状
+	electric_field: gf2.ElectricField2d = None		# 控制电场形状
 
 	cluster_radius: int = field(init=False)
 
@@ -23,20 +23,20 @@ class DLASimulator:
 	def __post_init__(self):
 		self.grid_size = self.electric_field.grid_size
 		self.center = self.grid_size // 2
-		self.directions = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
+		self.directions = [(1, 0), (0, 1), (-1, 0), (0, -1)]
 		self.grid = np.zeros((self.grid_size, self.grid_size), dtype=int)
 		self.weights = self.weight_culculator()
 		self.cluster_radius = 0
 
-		if self.electric_field.field_type == gf.FieldType.POINT:
+		if self.electric_field.field_type == gf2.FieldType2d.POINT:
 			self.grid[self.center, self.center] = 1
-		elif self.electric_field.field_type == gf.FieldType.UNIFORM_UP:
+		elif self.electric_field.field_type == gf2.FieldType2d.UNIFORM_UP:
 			self.grid[:, -1] = 1
-		elif self.electric_field.field_type == gf.FieldType.UNIFORM_DOWN:
+		elif self.electric_field.field_type == gf2.FieldType2d.UNIFORM_DOWN:
 			self.grid[:, 0] = 1
-		elif self.electric_field.field_type == gf.FieldType.UNIFORM_LEFT:
+		elif self.electric_field.field_type == gf2.FieldType2d.UNIFORM_LEFT:
 			self.grid[0, :] = 1
-		elif self.electric_field.field_type == gf.FieldType.UNIFORM_RIGHT:
+		elif self.electric_field.field_type == gf2.FieldType2d.UNIFORM_RIGHT:
 			self.grid[-1, :] = 1
 		else:
 			raise ValueError(f"Unsupported field type: {self.electric_field.field_type}")
@@ -75,20 +75,20 @@ class DLASimulator:
 
 	def spawn_particle(self):
 		ft = self.electric_field.field_type
-		if ft == gf.FieldType.POINT:
+		if ft == gf2.FieldType2d.POINT:
 			angle = 2 * np.pi * random.random()
 			x = int(self.center + (self.cluster_radius + self.radius_buffer) * np.cos(angle))
 			y = int(self.center + (self.cluster_radius + self.radius_buffer) * np.sin(angle))
-		elif ft == gf.FieldType.UNIFORM_DOWN:
+		elif ft == gf2.FieldType2d.UNIFORM_DOWN:
 			x = random.randint(0, self.grid_size - 1)
 			y = self.grid_size - 1
-		elif ft == gf.FieldType.UNIFORM_UP:
+		elif ft == gf2.FieldType2d.UNIFORM_UP:
 			x = random.randint(0, self.grid_size - 1)
 			y = 0
-		elif ft == gf.FieldType.UNIFORM_LEFT:
+		elif ft == gf2.FieldType2d.UNIFORM_LEFT:
 			x = self.grid_size - 1
 			y = random.randint(0, self.grid_size - 1)
-		elif ft == gf.FieldType.UNIFORM_RIGHT:
+		elif ft == gf2.FieldType2d.UNIFORM_RIGHT:
 			x = 0
 			y = random.randint(0, self.grid_size - 1)
 		else:
@@ -143,8 +143,8 @@ class DLASimulator:
 
 def test_point():
 	# 点电荷在中心
-	field_point = gf.ElectricField(
-		field_type=gf.FieldType.POINT,
+	field_point = gf2.ElectricField2d(
+		field_type=gf2.FieldType2d.POINT,
 		grid_size=201,
 		strength=1.0
 	)
@@ -164,8 +164,8 @@ def test_point():
 
 def test_parallel():
 	# 平行板电场
-	field_parallel = gf.ElectricField(
-		field_type=gf.FieldType.UNIFORM_DOWN,
+	field_parallel = gf2.ElectricField2d(
+		field_type=gf2.FieldType2d.UNIFORM_DOWN,
 		grid_size=201,
 		strength=1.0
 	)
