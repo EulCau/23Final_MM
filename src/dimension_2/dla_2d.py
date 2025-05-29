@@ -11,6 +11,10 @@ import generate_field_2d as gf2
 # 长宽比不重要, 为方便令网格为正方形, 见 class ElectricField
 @dataclass
 class DLASimulator:
+	sei_thickness: np.ndarray = field(init=False)  # 记录每个格点的SEI膜厚度
+	sei_growth_rate: float = 0.01                 # SEI膜生长速率
+	sei_max_thickness: float = 1.0                # SEI膜最大厚度
+	sei_resistance_factor: float = 0.01            # SEI膜对离子通过的阻碍系数
 	max_particles: int = 1000					# 最大沉积粒子数
 	max_steps_per_particle: int = 10000			# 每个粒子的最大步数
 	attach_prob: float = 1.0					# 粘附概率, 后续可以调控
@@ -19,7 +23,6 @@ class DLASimulator:
 
 	cluster_radius: int = field(init=False)
 
-
 	def __post_init__(self):
 		self.grid_size = self.electric_field.grid_size
 		self.center = self.grid_size // 2
@@ -27,6 +30,7 @@ class DLASimulator:
 		self.grid = np.zeros((self.grid_size, self.grid_size), dtype=int)
 		self.weights = self.weight_culculator()
 		self.cluster_radius = 0
+		self.sei_thickness = np.zeros((self.grid_size, self.grid_size), dtype=float)
 
 		if self.electric_field.field_type == gf2.FieldType2d.POINT:
 			self.grid[self.center, self.center] = 1
@@ -108,9 +112,29 @@ class DLASimulator:
 				return True
 		return False
 
+	def calculate_curvature(self, x, y):
+		neighbors = 0
+		for dx, dy in [(1,0), (0,1), (-1,0), (0,-1)]:
+			if self.is_dendrite(x + dx, y + dy):
+				neighbors += 1
+		return max(0, 4 - neighbors)  # 孤立点曲率=4，平坦区域曲率=0
+
 	def biased_move_with_field(self, x, y):
 		dx, dy = random.choices(self.directions, weights=self.weights[x, y])[0]
 		return x + dx, y + dy
+
+	def update_sei_thickness(self):
+		for x in range(self.grid_size):
+			for y in range(self.grid_size):
+				if self.is_dendrite(x, y) and self.sei_thickness[x, y] < self.sei_max_thickness:
+					growth = self.sei_growth_rate
+					curvature = self.calculate_curvature(x, y)
+					growth *= (1.0 + curvature)
+
+					# 更新SEI膜厚度（限制最大值）
+					self.sei_thickness[x, y] = min(
+						self.sei_thickness[x, y] + growth,
+						self.sei_max_thickness)
 
 	def simulate(self):
 		particle_count = 1
@@ -121,17 +145,29 @@ class DLASimulator:
 
 			while steps < self.max_steps_per_particle:
 				x, y = self.biased_move_with_field(x, y)
+				self.update_sei_thickness()  # 更新SEI膜厚度
 				steps += 1
 
 				if not self.is_valid(x, y):
 					break
 
-				if self.is_adjacent_to_cluster(x, y) and random.random() < self.attach_prob:
-					self.grid[x, y] = 1
-					dist = int(np.sqrt((x - self.center) ** 2 + (y - self.center) ** 2))
-					self.cluster_radius = max(self.cluster_radius, dist)
-					particle_count += 1
-					break
+				if self.is_adjacent_to_cluster(x, y) and not self.is_dendrite(x, y):
+					base_prob = self.attach_prob
+					thickness=0
+					directions = [(1,0), (0,1), (-1,0), (0,-1)]
+					for dx, dy in directions:
+						nx, ny = x + dx, y + dy
+						if self.is_valid(nx, ny):
+							thickness +=self.sei_thickness[nx,ny]
+					sei_effect = np.exp(-self.sei_resistance_factor * thickness)
+					effective_prob = base_prob * sei_effect
+
+					if random.random() < effective_prob:
+						self.grid[x, y] = 1
+						dist = int(np.sqrt((x - self.center) ** 2 + (y - self.center) ** 2))
+						self.cluster_radius = max(self.cluster_radius, dist)
+						particle_count += 1
+						break
 
 	def plot_cluster(self):
 		plt.figure(figsize=(6, 6))
