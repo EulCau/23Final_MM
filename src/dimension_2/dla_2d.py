@@ -51,28 +51,48 @@ class DLASimulator:
 		self.update_curvature_initial()
 
 	def weight_culculator(self):
-		weights = np.zeros((self.grid_size, self.grid_size, len(self.directions_s)))
+		h, w = self.grid_size, self.grid_size
+		num_dirs = len(self.directions_edge)
 
-		for i in range(self.grid_size):
-			for j in range(self.grid_size):
-				field_vec = np.array([self.electric_field.field_x[i, j], self.electric_field.field_y[i, j]])
-				dot_products = []
+		# shape (h, w, 2) 电场向量场
+		field_vecs = np.stack([self.electric_field.field_x, self.electric_field.field_y], axis=-1)
 
-				for dx, dy in self.directions_s:
-					ni, nj = i + dx, j + dy
-					if self.is_valid(ni, nj):
-						dir_vec = np.array([dx, dy], dtype=float)
-						dir_vec /= np.linalg.norm(dir_vec)  # 单位向量
-						dot_products.append(np.dot(field_vec, dir_vec))
-					else:
-						dot_products.append(float('-inf'))  # 出界方向, 稍后设为 0 权重
+		# 所有方向单位向量: shape (num_dirs, 2)
+		dir_array = np.array(self.directions_edge, dtype=float)
+		dir_norms = np.linalg.norm(dir_array, axis=1, keepdims=True)
+		dir_unit = dir_array / np.maximum(dir_norms, 1e-8)
 
-				# 归一化前的 softmax 权重 (防止数值爆炸)
-				max_dot = max(dot for dot in dot_products if dot != float('-inf'))
-				exp_weights = [np.exp(dot - max_dot) if dot != float('-inf') else 0.0 for dot in dot_products]
+		dot_products = np.zeros((h, w, num_dirs), dtype=float)
+		mask_valid = np.ones((h, w, num_dirs), dtype=bool)
 
-				sum_weights = sum(exp_weights)
-				weights[i, j, :] = [w / sum_weights if sum_weights > 0 else 0.0 for w in exp_weights]
+		for k, (dx, dy) in enumerate(self.directions_edge):
+			# 使用 np.roll 移动 field 向量
+			shifted_x = np.roll(field_vecs[..., 0], shift=-dx, axis=0)
+			shifted_y = np.roll(field_vecs[..., 1], shift=-dy, axis=1)
+
+			# 检查越界（设置无效方向 mask）
+			if dx > 0:
+				mask_valid[-dx:, :, k] = False
+			elif dx < 0:
+				mask_valid[:-dx, :, k] = False
+			if dy > 0:
+				mask_valid[:, -dy:, k] = False
+			elif dy < 0:
+				mask_valid[:, :-dy, k] = False
+
+			# 点积
+			dot_products[..., k] = shifted_x * dir_unit[k, 0] + shifted_y * dir_unit[k, 1]
+
+		# 越界方向设置为 -inf, 保证 softmax 中其权重为 0
+		dot_products[~mask_valid] = -np.inf
+
+		# softmax 归一化
+		max_dot = np.max(dot_products, axis=2, keepdims=True)
+		exp_weights = np.exp(dot_products - max_dot)
+		exp_weights[~mask_valid] = 0.0  # 越界方向权重为 0
+		sum_exp = np.sum(exp_weights, axis=2, keepdims=True)
+		weights = np.divide(exp_weights, sum_exp, out=np.zeros_like(exp_weights), where=(sum_exp > 0))
+
 		return weights
 
 	def spawn_particle(self):
