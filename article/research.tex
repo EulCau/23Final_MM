@@ -1,0 +1,119 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{ctex}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{caption}
+\usepackage{cite}
+\usepackage[version=4]{mhchem}
+\usepackage{siunitx}
+
+\title{一些探讨: 化学机制和粒子运动分析}
+\author{刘行}
+\date{\today}
+
+\begin{document}
+\maketitle
+	\section*{引言}
+		锂离子电池充电时会发生如下化学反应:
+		\begin{itemize}
+			\item 阳极: \ce{LiCoO2 -> CoO2 + Li+ + e-}
+			\item 阴极: 石墨\ce{ + Li+ + e- -> LiC6}, 副反应 \ce{Li + e- -> Li v}
+		\end{itemize}
+
+		现对如下问题进行探讨:
+		\begin{enumerate}
+			\item 锂离子在液态电解液中的存在形式是什么样的, 是离子, 水合物, 络合物, 胶粒还是其他物质 (之后统称为此粒子);
+			\item 此粒子进行什么样的随机运动 (比如热运动或者布朗运动等), 其速率和每次转向之间的运动距离的尺度是什么样的;
+			\item 此粒子在电解池中的定向移动速率大小与随机运动速率大小的比例关系如何, 然后分析如何根据电场强度确定各个方向的运动趋势的权重.
+		\end{enumerate}
+
+	\section{锂离子在液态电解液中的存在形式}
+		锂离子在非水电解液中几乎总是以溶剂化形式存在, 可记作 \ce{Li+(S)_n} 复合物, 其中溶剂分子 (如碳酸酯的羰基氧, 醚氧等) 配位于 \ce{Li+} 周围.
+
+		例如, 在 $\SI{1}{mol/L}$ \ce{LiPF6} /EC-DMC 电解液中, \ce{Li+} 的第一溶剂壳配位数通常为 $4 \sim 6$, 具体取决于溶剂比例 \cite{ref1}. 模拟与实验表明 \ce{Li+} 优选形成四面体配位结构 (配位数约为 $4$). 不同溶剂结构对配位能力的影响显著: 线性碳酸酯 (如 EMC) 提供较弱溶剂化, 对应更高的扩散系数, 而环状碳酸酯 (如 EC) 则溶剂化更强 \cite{ref2}.
+
+		\ce{Li+} 也可能与 \ce{PF6-} 等阴离子形成接触离子对或更大离子簇. 在含水电解液中, \ce{Li+} 为水合离子, 配位数通常为 $4$. 在高浓度或无溶剂体系 (如聚电解质或离子液体) 中, 阴离子参与配位, 形成溶剂隔离离子对或多离子络合物\cite{ref1, ref3}.
+
+	\section{粒子随机运动机制与扩散}
+		在无外场条件下, \ce{Li+} 通过热运动 (布朗运动) 扩散, 其扩散系数 $D$ 可由 Stokes-Einstein 关系近似估算:
+		\begin{equation}
+		D \approx \frac{k_{B} T}{6 \pi \eta r}
+		\end{equation}
+		其中, $r$ 为溶剂化离子半径, $\eta$ 为溶剂粘度. 典型碳酸酯电解液中, $\eta \approx 10^{-3}\,\si{Pa\cdot s}$, $r \approx 0.2 \sim \SI{0.3}{nm}$, 可得 $D \approx 10^{-10} \sim 10^{-9}\,\si{m^{2}/s}$.
+
+		实验测量 (如旋转圆盘电极与 PFG-NMR) 亦支持此量级. 例如, 在 $\SI{1}{mol/L}$ \ce{LiPF6} /EC:DMC 中, \ce{Li+} 的 $D$ 可达 $1.4 \times 10^{-9}\,\si{m^{2}/s}$ \cite{ref4}, 其中直链溶剂 (EMC) 下略高于环状溶剂 (EC) \cite{ref2}. PFG-NMR研究也发现 $D_{\ce{Li+}}$ 约为 $10^{-10} \sim 10^{-9}\,\si{m^{2}/s}$, 且有序: $D_{\text{溶剂}} > D_{\text{阴离子}} > D_{\ce{Li+}}$ \cite{ref5}, 这是因为 \ce{Li+} 溶剂化半径更大.
+
+		估算平均自由程可将扩散过程视为高频碰撞: \ce{Li+} 的热速度可估为
+		\begin{equation}
+		v_{\mathrm{th}} \sim \sqrt{\frac{3 k_{B} T}{m}}
+		\end{equation}
+		其中 $m$ 包括溶剂化团簇质量. 在 $T = \SI{300}{K}$ 下, $v_{\mathrm{th}} \approx 10^{2} \sim 10^{3}\,\si{m/s}$. 其平均自由程为:
+		\begin{equation}
+		l \approx \frac{3D}{v_{\mathrm{th}}}
+		\end{equation}
+		约为 $10^{-11} \sim 10^{-10}\,\si{m}$, 相当于几埃, 与液体分子间距相当. 溶剂粘度增加或溶剂化半径增大均会减小 $D$, 使自由程进一步缩短 \cite{ref3}.
+
+	\section{电场作用下的定向迁移}
+		在电场 $\mathbf{E}$ 作用下, \ce{Li+} 获得漂移速度 $v_{d}$:
+		\begin{equation}
+		v_{d} = \mu E
+		\end{equation}
+		其中迁移率 $\mu$ 可由爱因斯坦关系给出:
+		\begin{equation}
+		\mu = \frac{Dq}{k_{B} T}
+		\end{equation}
+		例如, $D = 1 \times 10^{-9}\,\si{m^{2}/s}$, $T=\SI{298}{K}$, 得 $\mu \approx 4 \times 10^{-8}\,\si{m^{2}/(V\cdot s)}$, 对应在 $E = 10^{4}\,\si{V/m}$ 下的漂移速度为 $v_{d} \approx 4 \times 10^{-4}\,\si{m/s}$.
+
+		扩散在 $t=\SI{1}{s}$ 内的均方根位移:
+		\begin{equation}
+		\sqrt{2Dt} \approx 4.5 \times 10^{-5}\,\si{m}
+		\end{equation}
+		即``扩散速度''量级约 $10^{-4}\,\si{m/s}$, 说明在中等电场下漂移速度与扩散速度可为同一数量级 (弱场时扩散占优, 强场时漂移主导). 文献指出, 溶剂种类影响扩散: 例如直链碳酸酯 (EMC) 中 \ce{Li+} 扩散略大于环状碳酸酯 (EC) \cite{ref2}. 当 $qE$ 显著超过$k_BT$时, \ce{Li+} 几乎沿电场线定向迁移; 反之若$k_BT\gg qE$, 分布趋于各向同性 \cite{ref6}.
+
+		在 DLA 模拟中, 可引入偏置的随机行走模型来模拟电场下的定向迁移, 例如:
+		\begin{equation}
+		P(\Delta \mathbf{r}) \propto \exp\left( \frac{q \mathbf{E} \cdot \Delta \mathbf{r}}{k_{B} T} \right)
+		\end{equation}
+		或在线性近似 \cite{ref6} 下化简为:
+		\begin{equation}
+		P(\Delta \mathbf{r}) \approx 1 + \frac{q \mathbf{E} \cdot \Delta \mathbf{r}}{k_{B} T}
+		\end{equation}
+		从而在统计上偏置粒子沿电场移动. 理论分析表明, 在强电场极限下, 粒子趋向于聚集在电场强度最大的区域.
+
+	\section*{模型参数及典型值}
+		在基于 DLA 的枝晶模拟中, 关键物理参数及其典型量级如下:
+
+		\begin{itemize}
+			\item \textbf{扩散系数 $D$}: $10^{-10} \sim 10^{-9}\,\si{m^{2}/s}$ \cite{ref4}
+			\item \textbf{迁移率 $\mu$}: $\mu=Dq/(k_{B}T)$, 取上式 $D$ 可算 $\mu \sim 10^{-9} \sim 10^{-8}\,\si{m^{2}/(V\cdot s)}$
+			\item \textbf{离子浓度}: $\SI{1}{mol/L}$ 对应约 $6 \times 10^{26}\,\si{m^{-3}}$ (假设完全电离)
+			\item \textbf{电场强度 $E$}: 电解液内部典型 $10^{3} \sim 10^{4}\,\si{V/m}$; 在尖锐枝晶尖端或高电流条件下局部可达 $10^{5} \sim 10^{6}\,\si{V/m}$
+			\item \textbf{温度 $T$}: 常温 $\SI{298}{K}$
+			\item \textbf{粘度 $\eta$}: 常见碳酸酯溶剂粘度约$10^{-3}\,\si{Pa\cdot s}$; 高浓度时 $\eta$ 增大, 离子有效半径增大, 均致迁移率降低 \cite{ref3}
+			\item \textbf{溶剂化离子半径 $r$}: $r \approx 0.2 \sim \SI{0.3}{nm}$, 影响 $D$ 和 Stokes 阻尼
+			\item \textbf{模拟步长 $\Delta x$}: 可取在溶剂化离子尺度 (亚纳米量级) 以合理分辨扩散和漂移过程
+		\end{itemize}
+
+		这些参数决定 DLA 模拟中粒子的移动步长, 偏置概率, 网格大小及时间步长等设定, 可作为数值模拟校准的基础 \cite{ref3, ref4}.
+
+	\newpage
+
+	\bibliographystyle{unsrt}
+
+	\begin{thebibliography}{99}
+		\bibitem{ref1} Han, S. A salient effect of density on the dynamics of nonaqueous electrolytes. Sci Rep 7, 46718 (2017). \href{https://doi.org/10.1038/srep46718}{https://doi.org/10.1038/srep46718}
+
+		\bibitem{ref2} Ong, Mitchell T et al. “Lithium ion solvation and diffusion in bulk organic electrolytes from first-principles and classical reactive molecular dynamics.” The journal of physical chemistry. B vol. 119,4 (2015): 1535-45. \href{https://doi.org/10.1021/jp508184f}{doi:10.1021/jp508184f}
+
+		\bibitem{ref3} Giffin, G.A. The role of concentration in electrolyte solutions for non-aqueous lithium-based batteries. Nat Commun 13, 5250 (2022). \href{https://doi.org/10.1038/s41467-022-32794-z}{https://doi.org/10.1038/s41467-022-32794-z}
+
+		\bibitem{ref4} Lee, SI., Jung, UH., Kim, YS. et al. A study of electrochemical kinetics of lithium ion in organic electrolytes. Korean J. Chem. Eng. 19, 638-644 (2002). \href{https://doi.org/10.1007/BF02699310}{https://doi.org/10.1007/BF02699310}
+
+		\bibitem{ref5} Karatrantos AV, Khan S, Yan C, Dieden R, Urita K, Ohba T, Cai Q. Ion Transport in Organic Electrolyte Solutions for Lithium-ion Batteries and Beyond. Journal of Energy and Power Technology 2021; 3(3): 043; \href{https://doi.org/10.21926/jept.2103043}{doi:10.21926/jept.2103043}
+
+		\bibitem{ref6} Roberto Failla, Mauro Bologna, Bernardo Tellini, Dendrite growth model in battery cell combining electrode edge effects and stochastic forces into a Diffusion Limited Aggregation scheme, Journal of Power Sources, Volume 433, 2019, 126675, ISSN 0378-7753, \href{https://doi.org/10.1016/j.jpowsour.2019.05.081}{https://doi.org/10.1016/j.jpowsour.2019.05.081}
+	\end{thebibliography}
+\end{document}
