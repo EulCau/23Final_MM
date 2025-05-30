@@ -33,7 +33,7 @@ class DLASimulator:
 		self.directions_edge = [d for d in self.all_dirs if sum(abs(i) for i in d) == 2]
 		self.directions_vertex = [d for d in self.all_dirs if sum(abs(i) for i in d) == 3]
 		self.grid = np.zeros((self.grid_size, self.grid_size, self.grid_size), dtype=int)
-		self.weights = self.weight_culculator()
+		self.weights = self.weight_calculator()
 		self.sei_thickness = np.zeros((self.grid_size, self.grid_size, self.grid_size), dtype=float)
 		self.curvature = np.zeros((self.grid_size, self.grid_size, self.grid_size), dtype=float)
 		self.cluster_radius = 0
@@ -59,7 +59,7 @@ class DLASimulator:
 
 		self.update_curvature_initial()
 
-	def weight_culculator(self):
+	def weight_calculator(self):
 		N = self.grid_size
 		D = len(self.move_dirs)
 		dir_vecs = np.array(self.move_dirs, dtype=float)  # (D, 3)
