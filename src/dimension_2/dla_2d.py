@@ -77,23 +77,39 @@ class DLASimulator:
 
 	def spawn_particle(self):
 		ft = self.electric_field.field_type
+		r = self.cluster_radius + self.radius_buffer
+
 		if ft == gf2.FieldType2d.POINT:
-			angle = 2 * np.pi * random.random()
-			r = self.cluster_radius + self.radius_buffer
-			x = int(self.center + r * np.cos(angle))
-			y = int(self.center + r * np.sin(angle))
+			x = y = self.grid_size - 1
+			try_max = 300
+			try_time = 0
+			while try_time < try_max:
+				try_time += 1
+				angle = 2 * np.pi * random.random()
+
+				x_try = int(self.center + r * np.cos(angle))
+				y_try = int(self.center + r * np.sin(angle))
+
+				if self.is_valid(x_try, y_try):
+					x, y = x_try, y_try
+					break
+
 		elif ft == gf2.FieldType2d.UNIFORM_DOWN:
 			x = random.randint(0, self.grid_size - 1)
 			y = self.grid_size - 1
+
 		elif ft == gf2.FieldType2d.UNIFORM_UP:
 			x = random.randint(0, self.grid_size - 1)
 			y = 0
+
 		elif ft == gf2.FieldType2d.UNIFORM_LEFT:
 			x = self.grid_size - 1
 			y = random.randint(0, self.grid_size - 1)
+
 		elif ft == gf2.FieldType2d.UNIFORM_RIGHT:
 			x = 0
 			y = random.randint(0, self.grid_size - 1)
+
 		else:
 			raise ValueError(f"Unknown field type: {ft}")
 		return x, y
