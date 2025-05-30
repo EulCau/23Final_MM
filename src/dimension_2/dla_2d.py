@@ -27,8 +27,8 @@ class DLASimulator:
 	def __post_init__(self):
 		self.grid_size = self.electric_field.grid_size
 		self.center = self.grid_size // 2
-		self.directions_s = [(1, 0), (0, 1), (-1, 0), (0, -1)]
-		self.directions_a = [(1, 1), (-1, 1), (-1, -1), (1, -1)]
+		self.directions_edge = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+		self.directions_vertex = [(1, 1), (-1, 1), (-1, -1), (1, -1)]
 		self.grid = np.zeros((self.grid_size, self.grid_size), dtype=int)
 		self.weights = self.weight_culculator()
 		self.sei_thickness = np.zeros((self.grid_size, self.grid_size), dtype=float)
@@ -105,14 +105,14 @@ class DLASimulator:
 		return self.is_valid(x, y) and self.grid[x, y] == 1
 
 	def is_adjacent_to_cluster(self, x, y):
-		for dx, dy in self.directions_s + self.directions_a:
+		for dx, dy in self.directions_edge + self.directions_vertex:
 			if self.is_dendrite(x + dx, y + dy):
 				return True
 		return False
 
 	def calculate_curvature_at(self, x, y):
 		neighbors = 0
-		for dx, dy in self.directions_s:
+		for dx, dy in self.directions_edge:
 			if self.is_dendrite(x + dx, y + dy):
 				neighbors += 1
 		return max(0, 4 - neighbors)  # 孤立点曲率=4，平坦区域曲率=0
@@ -124,13 +124,13 @@ class DLASimulator:
 					self.curvature[x, y] = self.calculate_curvature_at(x, y)
 
 	def update_curvature_around(self, x, y):
-		for dx, dy in self.directions_s + [(0,0)]:
+		for dx, dy in self.directions_edge + [(0, 0)]:
 			nx, ny = x + dx, y + dy
-			if self.is_valid(nx, ny):
+			if self.is_dendrite(nx, ny):
 				self.curvature[nx, ny] = self.calculate_curvature_at(nx, ny)
 
 	def biased_move_with_field(self, x, y):
-		dx, dy = random.choices(self.directions_s, weights=self.weights[x, y])[0]
+		dx, dy = random.choices(self.directions_edge, weights=self.weights[x, y])[0]
 		return x + dx, y + dy
 
 	def update_sei_thickness(self):
@@ -160,7 +160,7 @@ class DLASimulator:
 				if self.is_adjacent_to_cluster(x, y) and not self.is_dendrite(x, y):
 					base_prob = self.attach_prob
 					thickness = 0
-					for dx, dy in self.directions_s:
+					for dx, dy in self.directions_edge:
 						nx, ny = x + dx, y + dy
 						if self.is_valid(nx, ny):
 							thickness += self.sei_thickness[nx, ny]
