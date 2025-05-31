@@ -8,8 +8,6 @@ import numpy as np
 import generate_field_3d as gf3
 
 
-# 模拟参数
-# 长宽比不重要, 为方便令网格为正方体, 见 class ElectricField
 def safe_roll(array, shift, axis):
 	rolled = np.roll(array, shift=shift, axis=axis)
 	if shift > 0:
@@ -23,11 +21,13 @@ def safe_roll(array, shift, axis):
 	return rolled
 
 
+# 模拟参数
+# 长宽比不重要, 为方便令网格为正方体, 见 class ElectricField
 @dataclass
 class DLASimulator:
-	sei_growth_rate: float = 0.01					# SEI膜生长速率
-	sei_max_thickness: float = 1.0					# SEI膜最大厚度
-	sei_resistance_factor: float = 0.1				# SEI膜对离子通过的阻碍系数
+	sei_growth_rate: float = 0.01					# SEI 膜生长速率
+	sei_max_thickness: float = 1.0					# SEI 膜最大厚度
+	sei_resistance_factor: float = 0.1				# SEI 膜对离子通过的阻碍系数
 	max_particles: int = 1000						# 最大沉积粒子数
 	max_steps_per_particle: int = 10000				# 每个粒子的最大步数
 	attach_prob: float = 1.0						# 粘附概率, 后续可以调控
@@ -198,24 +198,24 @@ class DLASimulator:
 
 	def calculate_curvature_at(self, x, y, z):
 		neighbors = 0
-		for dx, dy, dz in self.directions_face:
+		for dx, dy, dz in self.attach_dirs:
 			nx, ny, nz = x + dx, y + dy, z + dz
 			if self.is_dendrite(nx, ny, nz):
 				neighbors += 1
-		return max(0, 6 - neighbors)
+		return max(0, len(self.attach_dirs) - neighbors)
 
 	def update_curvature_initial(self):
 		self.curvature.fill(0)
 		dendrite_mask = self.grid
 
-		# 向每个方向滚动后叠加, 得到的就是此点周围六个面中 True 的个数
-		for dx, dy, dz in self.directions_face:
+		# 向每个方向滚动后叠加, 得到的就是此点周围 18 个黏附点中 True 的个数
+		for dx, dy, dz in self.attach_dirs:
 			shifted = safe_roll(dendrite_mask, dx, axis=0)
 			shifted = safe_roll(shifted, dy, axis=1)
 			shifted = safe_roll(shifted, dz, axis=2)
 			self.curvature += shifted
 
-		self.curvature = np.where(dendrite_mask, 6 - self.curvature, 0)
+		self.curvature = np.where(dendrite_mask, len(self.attach_dirs) - self.curvature, 0)
 
 	def add_dendrite(self, x, y, z):
 		self.grid[x, y, z] = 1
@@ -264,7 +264,7 @@ class DLASimulator:
 			if not self.is_valid(x, y, z):
 				break
 
-			if self.is_adjacent_to_cluster(x, y, z):
+			if self.is_adjacent_to_cluster(x, y, z)  and not self.is_dendrite(x, y, z):
 				if self.should_attach(x, y, z):
 					attached = True
 					self.add_dendrite(x, y, z)
@@ -277,13 +277,26 @@ class DLASimulator:
 
 		return attached
 
-	def simulate(self):
+	def simulate(self, step = None):
+		if step is None:
+			step = self.max_particles
 		particle_count = 1
+		dendrites_indices = []
+		sei_thicknesses = []
+		time = []
 
 		while particle_count < self.max_particles:
 			if (particle_count + 1) % 10 == 0:
 				print(f"{particle_count + 1} / {self.max_particles}")
 			particle_count += (1 if self.simulate_single_particle() else 0)
+
+			if (particle_count + 1) % step == 0 or particle_count == self.max_particles:
+				if len(time) == 0 or particle_count != time[-1]:
+					dendrites_indices.append(self.dendrite_indices)
+					sei_thicknesses.append(self.sei_thickness)
+					time.append(particle_count)
+
+		return dendrites_indices, sei_thicknesses, time, self.electric_field.field_type
 
 	def plot_cluster(self):
 		fig = plt.figure(figsize=(6, 6))
@@ -298,47 +311,70 @@ class DLASimulator:
 		plt.show()
 
 
-def test_point():
+def test_point(strength=1.0,
+			   sei_growth_rate=0.01,
+			   sei_max_thickness= 1.0,
+			   sei_resistance_factor= 0.1,
+			   max_particles=1000,
+			   attach_prob=1.0,
+			   plot_result=True):
 	# 点电荷在中心
 	field_point = gf3.ElectricField3d(
 		field_type=gf3.FieldType3d.POINT,
 		grid_size=201,
-		strength=1.0
+		strength=strength
 	)
 
 	dla_point = DLASimulator(
-		max_particles = 5000,
-		max_steps_per_particle = 10000,
-		attach_prob = 1.0,
-		radius_buffer = 5,
+		sei_growth_rate=sei_growth_rate,
+		sei_max_thickness=sei_max_thickness,
+		sei_resistance_factor=sei_resistance_factor,
+		max_particles = max_particles,
+		attach_prob=attach_prob,
 		electric_field= field_point
 	)
 
 	# 运行模拟
-	dla_point.simulate()
-	dla_point.plot_cluster()
+	result = dla_point.simulate(step=50)
+	if plot_result:
+		dla_point.plot_cluster()
+
+	return result
 
 
-def test_parallel():
+def test_parallel(strength=0.01,
+				  sei_growth_rate=0.01,
+				  sei_max_thickness= 1.0,
+				  sei_resistance_factor= 0.1,
+				  max_particles=1000,
+				  attach_prob=1.0,
+				  plot_result=True):
 	# 平行板电场
 	field_parallel = gf3.ElectricField3d(
 		field_type=gf3.FieldType3d.UNIFORM_DOWN,
 		grid_size=41,
-		strength=0.01
+		strength=strength,
 	)
 
 	dla_parallel = DLASimulator(
-		max_particles = 1000,
-		max_steps_per_particle = 10000,
-		attach_prob = 1.0,
+		sei_growth_rate=sei_growth_rate,
+		sei_max_thickness=sei_max_thickness,
+		sei_resistance_factor=sei_resistance_factor,
+		max_particles = max_particles,
+		attach_prob=attach_prob,
 		electric_field= field_parallel
 	)
 
 	# 运行模拟
-	dla_parallel.simulate()
-	dla_parallel.plot_cluster()
+	result = dla_parallel.simulate(step=50)
+	if plot_result:
+		dla_parallel.plot_cluster()
+
+	return result
 
 
 if __name__ == "__main__":
-	test_point()
-	test_parallel()
+	test_point(1.0, 0.01, 1.0, 0.1,
+			   1000, 1.0, True)
+	test_parallel(0.01, 0.01, 1.0, 0.1,
+				  1000, 1.0, True)
