@@ -32,11 +32,11 @@ def load_experiment_result(file_path: Path):
     )
 
 
-def run_or_load_experiment(target: str = "point") -> DLAMetricsEvaluator:
+def run_or_load_experiment(renew: bool = False, target: str = "point") -> DLAMetricsEvaluator:
     file_path = get_save_path(target)
 
     # 如果文件已存在则读取
-    if file_path.exists():
+    if file_path.exists() and not renew:
         print(f"Loading existing experiment result from {file_path}")
         dendrites_indices, sei_thicknesses, times, field_type = load_experiment_result(file_path)
     else:
@@ -69,7 +69,7 @@ def run_or_load_experiment(target: str = "point") -> DLAMetricsEvaluator:
 
 
 def main():
-    evaluator = run_or_load_experiment(target="point")
+    evaluator = run_or_load_experiment(renew=True, target="point")
 
     volume_ratios, densities = evaluator.compute_volume_ratio_and_density()
     speeds = evaluator.compute_growth_speed()
