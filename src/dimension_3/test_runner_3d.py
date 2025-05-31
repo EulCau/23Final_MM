@@ -1,15 +1,35 @@
+import os
 from pathlib import Path
 
 import numpy as np
 
 from analysis_metrics_3d import DLAMetricsEvaluator
 from dla_3d import test_point, test_parallel
+import json
 
 
-def get_save_path(target: str) -> Path:
+def load_config(config_path):
+    if not os.path.exists(config_path):
+        print(f"[警告] 配置文件不存在: {config_path}, 将使用默认参数.")
+        return {
+            "strength": 0.01,
+            "sei_growth_rate": 0.01,
+            "sei_max_thickness": 1.0,
+            "sei_resistance_factor": 0.1,
+            "max_particles": 1000,
+            "attach_prob": 1.0,
+            "plot_result": True
+        }
+
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    return config
+
+
+def get_save_path(result_name: str) -> Path:
     results_dir = Path("../../results/data")  # 保存目录
     results_dir.mkdir(exist_ok=True)
-    return results_dir / f"{target}_result.npz"
+    return results_dir / f"{result_name}_result.npz"
 
 
 def save_experiment_result(file_path: Path, dendrites_indices, sei_thicknesses, times, field_type):
@@ -32,8 +52,10 @@ def load_experiment_result(file_path: Path):
     )
 
 
-def run_or_load_experiment(renew: bool = False, target: str = "point") -> DLAMetricsEvaluator:
-    file_path = get_save_path(target)
+def run_or_load_experiment(renew: bool = False, config_path = "config_point.json", target: str = "point") -> DLAMetricsEvaluator:
+    base = os.path.splitext(os.path.basename(config_path))[0]
+    file_path = get_save_path(base)
+    params = load_config(config_path)
 
     # 如果文件已存在则读取
     if file_path.exists() and not renew:
@@ -42,13 +64,9 @@ def run_or_load_experiment(renew: bool = False, target: str = "point") -> DLAMet
     else:
         print(f"Running new simulation for target: {target}")
         if target == "point":
-            dendrites_indices, sei_thicknesses, times, field_type = test_point(
-                1.0, 0.01, 1.0, 0.1,
-                1000, 1.0, True)
+            dendrites_indices, sei_thicknesses, times, field_type = test_point(**params)
         elif target == "parallel":
-            dendrites_indices, sei_thicknesses, times, field_type = test_parallel(
-                0.01, 0.01, 1.0, 0.1,
-                1000, 1.0, True)
+            dendrites_indices, sei_thicknesses, times, field_type = test_parallel(**params)
         else:
             raise ValueError(f"Unknown target '{target}', 'point' or 'parallel' only")
 
@@ -68,17 +86,16 @@ def run_or_load_experiment(renew: bool = False, target: str = "point") -> DLAMet
     return evaluator
 
 
-def main():
-    evaluator = run_or_load_experiment(renew=True, target="point")
+def test(config_name):
+    config_dir = Path("../../config")
+    evaluator = run_or_load_experiment(renew=True, config_path=config_dir / config_name, target="point")
 
     volume_ratios, densities = evaluator.compute_volume_ratio_and_density()
     speeds = evaluator.compute_growth_speed()
     fractal_dimension = evaluator.compute_fractal_dimension()
 
-    print("Volume Ratio: ", volume_ratios)
-    print("Growth Speed", speeds)
-    print("Dimension: ", fractal_dimension)
+    return evaluator.times, volume_ratios, densities, speeds, fractal_dimension
 
 
 if __name__ == "__main__":
-    main()
+    test("point_3d_default.json")
