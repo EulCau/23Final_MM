@@ -10,6 +10,19 @@ import generate_field_3d as gf3
 
 # 模拟参数
 # 长宽比不重要, 为方便令网格为正方体, 见 class ElectricField
+def safe_roll(array, shift, axis):
+	rolled = np.roll(array, shift=shift, axis=axis)
+	if shift > 0:
+		slicer = [slice(None)] * 3
+		slicer[axis] = slice(0, shift)
+		rolled[tuple(slicer)] = 0
+	elif shift < 0:
+		slicer = [slice(None)] * 3
+		slicer[axis] = slice(shift, None)
+		rolled[tuple(slicer)] = 0
+	return rolled
+
+
 @dataclass
 class DLASimulator:
 	sei_growth_rate: float = 0.01					# SEI膜生长速率
@@ -20,7 +33,8 @@ class DLASimulator:
 	attach_prob: float = 1.0						# 粘附概率, 后续可以调控
 	radius_buffer: int = 5							# 控制生成新粒子的半径缓冲区
 	electric_field: gf3.ElectricField3d = None		# 控制电场形状
-	weight_zoom = 50
+	weight_zoom: int = 50
+	use_sei: bool = True							# 控制是否启用 SEI 模型
 
 	sei_thickness: np.ndarray = field(init=False)	# 记录每个格点的SEI膜厚度
 	curvature: np.ndarray = field(init=False)
@@ -196,25 +210,21 @@ class DLASimulator:
 
 		# 向每个方向滚动后叠加, 得到的就是此点周围六个面中 True 的个数
 		for dx, dy, dz in self.directions_face:
-			shifted = np.roll(dendrite_mask, shift=(dx, dy, dz), axis=(0, 1, 2))
-
-			# 对 roll 溢出部分清零（越界）
-			if dx == 1:
-				shifted[0, :, :] = False
-			elif dx == -1:
-				shifted[-1, :, :] = False
-			if dy == 1:
-				shifted[:, 0, :] = False
-			elif dy == -1:
-				shifted[:, -1, :] = False
-			if dz == 1:
-				shifted[:, :, 0] = False
-			elif dz == -1:
-				shifted[:, :, -1] = False
-
-			self.curvature += shifted.astype(int)
+			shifted = safe_roll(dendrite_mask, dx, axis=0)
+			shifted = safe_roll(shifted, dy, axis=1)
+			shifted = safe_roll(shifted, dz, axis=2)
+			self.curvature += shifted
 
 		self.curvature = np.where(dendrite_mask, 6 - self.curvature, 0)
+
+	def add_dendrite(self, x, y, z):
+		self.grid[x, y, z] = 1
+		self.dendrite_indices = (
+			np.concatenate([self.dendrite_indices[0], [x]]),
+			np.concatenate([self.dendrite_indices[1], [y]]),
+			np.concatenate([self.dendrite_indices[2], [z]])
+		)
+
 
 	def update_curvature_around(self, x, y, z):
 		for dx, dy, dz in self.directions_face + [(0,0,0)]:
@@ -226,54 +236,54 @@ class DLASimulator:
 		dx, dy, dz = random.choices(self.move_dirs, weights=self.weights[x, y, z])[0]
 		return x + dx, y + dy, z + dz
 
-	def update_sei_thickness(self):
-		self.sei_thickness[self.dendrite_indices] = np.minimum(
-			self.sei_thickness[self.dendrite_indices] + self.sei_growth_rate * (1.0 + self.curvature[self.dendrite_indices]),
-			self.sei_max_thickness
-		)
+	def update_sei_if_enabled(self):
+		if self.use_sei:
+			self.sei_thickness[self.dendrite_indices] = np.minimum(
+				self.sei_thickness[self.dendrite_indices] + self.sei_growth_rate * (1.0 + self.curvature[self.dendrite_indices]),
+				self.sei_max_thickness
+			)
+
+	def should_attach(self, x, y, z):
+		base_prob = self.attach_prob
+		thickness = 0
+		for dx, dy, dz in self.attach_dirs:
+			nx, ny, nz = x + dx, y + dy, z + dz
+			if self.is_valid(nx, ny, nz):
+				thickness += self.sei_thickness[nx, ny, nz]
+		sei_effect = np.exp(-self.sei_resistance_factor * thickness)
+		effective_prob = base_prob * sei_effect
+		return np.random.rand() < effective_prob
+
+	def simulate_single_particle(self):
+		attached = False
+		x, y, z = self.spawn_particle()
+		for _ in range(self.max_steps_per_particle):
+			x, y, z = self.biased_move_with_field(x, y, z)
+			self.update_sei_if_enabled()  # 更新 SEI 膜厚度
+
+			if not self.is_valid(x, y, z):
+				break
+
+			if self.is_adjacent_to_cluster(x, y, z):
+				if self.should_attach(x, y, z):
+					attached = True
+					self.add_dendrite(x, y, z)
+
+					self.update_curvature_around(x, y, z)
+					dist2 = (x - self.center) ** 2 + (y - self.center) ** 2 + (z - self.center) ** 2
+					if dist2 > self.cluster_radius ** 2:
+						self.cluster_radius = np.sqrt(dist2)
+					break
+
+		return attached
 
 	def simulate(self):
 		particle_count = 1
 
 		while particle_count < self.max_particles:
-			x, y, z = self.spawn_particle()
-			steps = 0
-
-			while steps < self.max_steps_per_particle:
-				x, y, z = self.biased_move_with_field(x, y, z)
-				# self.update_sei_thickness()  # 更新SEI膜厚度
-				steps += 1
-
-				if not self.is_valid(x, y, z):
-					break
-
-				if self.is_adjacent_to_cluster(x, y, z) and not self.is_dendrite(x, y, z):
-					particle_count += 1
-					base_prob = self.attach_prob
-					thickness = 0
-					for dx, dy, dz in self.attach_dirs:
-						nx, ny, nz = x + dx, y + dy, z + dz
-						if self.is_valid(nx, ny, nz):
-							thickness += self.sei_thickness[nx, ny, nz]
-					sei_effect = np.exp(-self.sei_resistance_factor * thickness)
-					effective_prob = base_prob * sei_effect
-
-					if random.random() < effective_prob:
-						# particle_count += 1
-						self.grid[x, y, z] = 1
-						ix, iy, iz = self.dendrite_indices
-						self.dendrite_indices = (
-							np.concatenate([ix, [x]]),
-							np.concatenate([iy, [y]]),
-							np.concatenate([iz, [z]])
-						)
-
-						self.update_curvature_around(x, y, z)
-						# self.update_sei_thickness()
-						dist2 = (x - self.center) ** 2 + (y - self.center) ** 2 + (z - self.center) ** 2
-						if dist2 > self.cluster_radius ** 2:
-							self.cluster_radius = np.sqrt(dist2)
-					break
+			if (particle_count + 1) % 10 == 0:
+				print(f"{particle_count + 1} / {self.max_particles}")
+			particle_count += (1 if self.simulate_single_particle() else 0)
 
 	def plot_cluster(self):
 		fig = plt.figure(figsize=(6, 6))
