@@ -20,10 +20,12 @@ class DLASimulator:
 	attach_prob: float = 1.0						# 粘附概率, 后续可以调控
 	radius_buffer: int = 5							# 控制生成新粒子的半径缓冲区
 	electric_field: gf3.ElectricField3d = None		# 控制电场形状
+	weight_zoom = 50
 
 	sei_thickness: np.ndarray = field(init=False)	# 记录每个格点的SEI膜厚度
 	curvature: np.ndarray = field(init=False)
 	cluster_radius: int = field(init=False)
+	dendrite_indices: tuple = field(init=False)
 
 	def __post_init__(self):
 		self.grid_size = self.electric_field.grid_size
@@ -32,14 +34,18 @@ class DLASimulator:
 		self.directions_face = [d for d in self.all_dirs if sum(abs(i) for i in d) == 1]
 		self.directions_edge = [d for d in self.all_dirs if sum(abs(i) for i in d) == 2]
 		self.directions_vertex = [d for d in self.all_dirs if sum(abs(i) for i in d) == 3]
+		self.move_dirs = self.directions_face
+		self.attach_dirs = self.directions_face + self.directions_edge
 		self.grid = np.zeros((self.grid_size, self.grid_size, self.grid_size), dtype=int)
 		self.weights = self.weight_calculator()
 		self.sei_thickness = np.zeros((self.grid_size, self.grid_size, self.grid_size), dtype=float)
 		self.curvature = np.zeros((self.grid_size, self.grid_size, self.grid_size), dtype=float)
 		self.cluster_radius = 0
-		self.move_dirs = self.directions_face
-		self.attach_dirs = self.directions_face + self.directions_edge
+		self.init_grid()
+		self.dendrite_indices = np.where(self.grid == 1)
+		self.update_curvature_initial()
 
+	def init_grid(self):
 		if self.electric_field.field_type == gf3.FieldType3d.POINT:
 			self.grid[self.center, self.center, self.center] = 1
 		elif self.electric_field.field_type == gf3.FieldType3d.UNIFORM_UP:
@@ -56,8 +62,6 @@ class DLASimulator:
 			self.grid[0, :, :] = 1
 		else:
 			raise ValueError(f"Unsupported field type: {self.electric_field.field_type}")
-
-		self.update_curvature_initial()
 
 	def weight_calculator(self):
 		N = self.grid_size
@@ -95,7 +99,7 @@ class DLASimulator:
 
 		# softmax 操作: 稳定性处理
 		max_dot = np.max(dot_products, axis=-1, keepdims=True)
-		exp_weights = np.exp(10 * (dot_products - max_dot))
+		exp_weights = np.exp(self.weight_zoom * (dot_products - max_dot))
 		exp_weights[~mask] = 0.0
 
 		sum_exp = np.sum(exp_weights, axis=-1, keepdims=True)
@@ -188,7 +192,7 @@ class DLASimulator:
 
 	def update_curvature_initial(self):
 		self.curvature.fill(0)
-		dendrite_mask = self.is_dendrite
+		dendrite_mask = self.grid
 
 		# 向每个方向滚动后叠加, 得到的就是此点周围六个面中 True 的个数
 		for dx, dy, dz in self.directions_face:
@@ -223,12 +227,9 @@ class DLASimulator:
 		return x + dx, y + dy, z + dz
 
 	def update_sei_thickness(self):
-		mask = (self.grid == 1) & (self.sei_thickness < self.sei_max_thickness)
-		growth = self.sei_growth_rate * (1.0 + self.curvature)
-		self.sei_thickness = np.where(
-			mask,
-			np.minimum(self.sei_thickness + growth, self.sei_max_thickness),
-			self.sei_thickness
+		self.sei_thickness[self.dendrite_indices] = np.minimum(
+			self.sei_thickness[self.dendrite_indices] + self.sei_growth_rate * (1.0 + self.curvature[self.dendrite_indices]),
+			self.sei_max_thickness
 		)
 
 	def simulate(self):
@@ -237,8 +238,6 @@ class DLASimulator:
 		while particle_count < self.max_particles:
 			x, y, z = self.spawn_particle()
 			steps = 0
-			# if particle_count % 10 == 0:
-			# 	print(particle_count / 10)
 
 			while steps < self.max_steps_per_particle:
 				x, y, z = self.biased_move_with_field(x, y, z)
@@ -249,6 +248,7 @@ class DLASimulator:
 					break
 
 				if self.is_adjacent_to_cluster(x, y, z) and not self.is_dendrite(x, y, z):
+					particle_count += 1
 					base_prob = self.attach_prob
 					thickness = 0
 					for dx, dy, dz in self.attach_dirs:
@@ -259,14 +259,21 @@ class DLASimulator:
 					effective_prob = base_prob * sei_effect
 
 					if random.random() < effective_prob:
-						particle_count += 1
+						# particle_count += 1
 						self.grid[x, y, z] = 1
+						ix, iy, iz = self.dendrite_indices
+						self.dendrite_indices = (
+							np.concatenate([ix, [x]]),
+							np.concatenate([iy, [y]]),
+							np.concatenate([iz, [z]])
+						)
+
 						self.update_curvature_around(x, y, z)
 						# self.update_sei_thickness()
 						dist2 = (x - self.center) ** 2 + (y - self.center) ** 2 + (z - self.center) ** 2
 						if dist2 > self.cluster_radius ** 2:
 							self.cluster_radius = np.sqrt(dist2)
-						break
+					break
 
 	def plot_cluster(self):
 		fig = plt.figure(figsize=(6, 6))
@@ -290,7 +297,7 @@ def test_point():
 	)
 
 	dla_point = DLASimulator(
-		max_particles = 1000,
+		max_particles = 5000,
 		max_steps_per_particle = 10000,
 		attach_prob = 1.0,
 		radius_buffer = 5,
@@ -306,8 +313,8 @@ def test_parallel():
 	# 平行板电场
 	field_parallel = gf3.ElectricField3d(
 		field_type=gf3.FieldType3d.UNIFORM_DOWN,
-		grid_size=51,
-		strength=1.0
+		grid_size=41,
+		strength=0.01
 	)
 
 	dla_parallel = DLASimulator(
