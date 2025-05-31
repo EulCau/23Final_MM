@@ -16,7 +16,7 @@ def load_config(config_path):
             "sei_growth_rate": 0.01,
             "sei_max_thickness": 1.0,
             "sei_resistance_factor": 0.1,
-            "max_particles": 1000,
+            "max_particles": 2000,
             "attach_prob": 1.0,
             "plot_result": True
         }
@@ -86,9 +86,10 @@ def run_or_load_experiment(renew: bool = False, config_path = "config_point.json
     return evaluator
 
 
-def test(config_name):
+def test(config_name, renew=False):
     config_dir = Path("../../config")
-    evaluator = run_or_load_experiment(renew=True, config_path=config_dir / config_name, target="point")
+    target = config_name.split('_')[0]
+    evaluator = run_or_load_experiment(renew=renew, config_path=config_dir / config_name, target=config_name.split('_')[0])
 
     volume_ratios, densities = evaluator.compute_volume_ratio_and_density()
     speeds = evaluator.compute_growth_speed()
