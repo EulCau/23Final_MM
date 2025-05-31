@@ -56,7 +56,7 @@ class DLAMetricsEvaluator:
             # 包裹盒体积
             max_extent = extent.max()
             if self.axis_mode == 'radial':
-                box_volume = (2 * max_extent) ** 3
+                box_volume = 4 / 3 * np.pi * max_extent ** 3
             else:
                 box_volume = (self.grid_size ** 2) * max_extent
             ratio = n / box_volume
@@ -68,7 +68,7 @@ class DLAMetricsEvaluator:
                 count = np.equal(indices, i).sum()
                 if self.axis_mode == 'radial':
                     r1, r2 = bins[i], bins[i+1]
-                    v_shell = (2 * r2)**3 - (2 * r1)**3
+                    v_shell = 4 / 3 * np.pi * (r2**3 - r1**3)
                     density[i] = count / v_shell if v_shell > 0 else 0
                 else:
                     h = bins[i+1] - bins[i]
